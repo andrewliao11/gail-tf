@@ -19,10 +19,10 @@ Tensorflow implementation of Generative Imitation Adversarial Learning
 - tensorflow==1.1.0
 - gym==0.9.3
 
-### Run the code
+## Run the code
 I separate the code into two parts: (1) Sampling expert data, (2) Imitation learning with GAIL
 
-(1) Sampling expert data
+### Sampling expert data
 
 - Train expert policy using PPO, from openai/baselines
 
@@ -42,7 +42,7 @@ python run_mujoco.py --env_id $ENV_ID --sample_stochastic --task sample_trajecto
 
 This will generate a pickle file that store the expert trajectories in ```./XXX.pkl``` (eg. deterministic.ppo.Hopper.0.00.pkl)
 
-(2) Imitation learning via GAIL
+### Imitation learning via GAIL
 
 ```bash
 cd $GAIL-TF
