@@ -4,19 +4,19 @@
 
 The total return (environment rewards, only used for evaluation):
 
-![](misc/Hopper-true-reward.png)
+![](Hopper-true-reward.png)
 
 The episode length and reward from discriminator:
 
-![](misc/Hopper-length-reward(D).png)
+![](Hopper-length-reward(D).png)
 
 The loss and accuracy of the discriminator:
 
-![](misc/Hopper-D.png)
+![](Hopper-D.png)
 
 Legend:
 
-![](misc/hopper.png)
+![](hopper.png)
 
 ## Walker2d-v1
 
