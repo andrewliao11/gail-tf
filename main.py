@@ -18,6 +18,10 @@ def argsparser():
     parser.add_argument('--checkpoint_dir', help='the directory to save model', default='checkpoint')
     parser.add_argument('--log_dir', help='the directory to save log file', default='log')
     parser.add_argument('--load_model_path', help='if provided, load the model', type=str, default=None)
+    # Task
+    parser.add_argument('--task', type=str, choices=['train', 'evaluate'], default='train')
+    # for evaluatation
+    parser.add_argument('--stocahstic_policy', type=bool, default=False)
     #  Mujoco Dataset Configuration
     parser.add_argument('--ret_threshold', help='the return threshold for the expert trajectories', type=int, default=0)
     parser.add_argument('--traj_limitation', type=int, default=np.inf)
@@ -87,19 +91,23 @@ def main(args):
         set_global_seeds(workerseed)
         env.seed(workerseed)
         from algo import trpo_mpi
-        trpo_mpi.learn(env, policy_fn, discriminator, dataset,
-            pretrained=args.pretrained, pretrained_weight=pretrained_weight,
-            g_step=args.g_step, d_step=args.d_step,
-            timesteps_per_batch=1024, 
-            max_kl=args.max_kl, cg_iters=10, cg_damping=0.1,
-            max_timesteps=args.num_timesteps, 
-            entcoeff=args.policy_entcoeff, gamma=0.995, lam=0.97, 
-            vf_iters=5, vf_stepsize=1e-3,
-            ckpt_dir=args.checkpoint_dir, log_dir=args.log_dir,
-            save_per_iter=args.save_per_iter, load_model_path=args.load_model_path,
-            task_name=task_name)
-    else:
-        raise NotImplementedError
+        if args.task == 'train':
+            trpo_mpi.learn(env, policy_fn, discriminator, dataset,
+                pretrained=args.pretrained, pretrained_weight=pretrained_weight,
+                g_step=args.g_step, d_step=args.d_step,
+                timesteps_per_batch=1024, 
+                max_kl=args.max_kl, cg_iters=10, cg_damping=0.1,
+                max_timesteps=args.num_timesteps, 
+                entcoeff=args.policy_entcoeff, gamma=0.995, lam=0.97, 
+                vf_iters=5, vf_stepsize=1e-3,
+                ckpt_dir=args.checkpoint_dir, log_dir=args.log_dir,
+                save_per_iter=args.save_per_iter, load_model_path=args.load_model_path,
+                task_name=task_name)
+        elif args.task == 'evaluate':
+            trpo_mpi.evaluate(env, policy_fn, args.load_model_path, timesteps_per_batch=1024,
+                number_trajs=10, stocahstic_policy=args.stocahstic_policy)
+        else: raise NotImplementedError
+    else: raise NotImplementedError
 
     env.close()
 

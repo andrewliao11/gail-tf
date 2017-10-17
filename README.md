@@ -61,7 +61,19 @@ Meaning of some flags are defined as:
 --num_timesteps:   Number of timesteps to train (limit the number of timesteps to interact with environment)
 ```
 
+### Evaluation of your GAIL agent
+
+Evaluating your agent with deterministic/stochastic policy.
+
+```bash
+# for deterministic policy
+python main.py --env_id $ENV_ID --task evaluate --load_model_path $PATH_TO_CKPT
+# for stochastic policy
+python main.py --env_id $ENV_ID --task evaluate --stocahstic_policy --load_model_path $PATH_TO_CKPT
+```
+
 ## Results
+
 Note: The following hyper-parameter setting is the best that I've tested (simple grid search on setting with 1500 trajectories), just for your information.
 
 The different curves below correspond to different expert size (1000,100,10,5).
@@ -93,8 +105,6 @@ python main.py --env_id HalfCheetah-v1 --expert_path baselines/ppo1/deterministi
 
 **You can find more details [here](https://github.com/andrewliao11/gail-tf/blob/master/misc/exp.md) and GAIL policy [here](https://drive.google.com/drive/folders/0B3fKFm-j0RqeN2VTTU8tc19UVk0?usp=sharing)**
 
-## TODO 
-- Evaluation code
 
 ## Reference
 - Generative adversarial imitation learning
