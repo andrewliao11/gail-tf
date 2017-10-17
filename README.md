@@ -91,8 +91,9 @@ python main.py --env_id HalfCheetah-v1 --expert_path baselines/ppo1/deterministi
 
 ![](misc/HalfCheetah-true-reward.png)
 
-**For more detail and trained_model, please see [here](https://github.com/andrewliao11/gail-tf/blob/master/misc/exp.md)**
+**For more detail, please see [here](https://github.com/andrewliao11/gail-tf/blob/master/misc/exp.md)**
 
+**For trained model, please see [here](https://drive.google.com/drive/folders/0B3fKFm-j0RqeN2VTTU8tc19UVk0?usp=sharing)**
 ## TODO 
 - Evaluation code
 
