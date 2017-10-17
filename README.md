@@ -64,17 +64,23 @@ Meaning of some flags are defined as:
 ## Results
 Note: The following hyper-parameter setting is the best that I've tested (simple grid search on setting with 1500 trajectories), just for your information.
 
+The different curves below correspond to different expert size (1000,100,10,5).
+
 - Hopper-v1 (Average total return of expert policy: )
 
 ```bash
 python main.py --env_id Hopper-v1 --expert_path baselines/ppo1/deterministicppo.Hopper.0.00.pkl --g_step 3 --adversary_entcoeff 0
 ```
 
+![](misc/Hopper-true-reward.png)
+
 - Walker-v1 (Average total return of expert policy: )
 
 ```bash
 python main.py --env_id Walker2d-v1 --expert_path baselines/ppo1/deterministicppo.Walker2d.0.00.pkl --g_step 3 --adversary_entcoeff 1e-3
 ```
+
+![](misc/Walker2d-true-reward.png)
 
 - HalhCheetah-v1 (Average total return of expert policy: )
 
@@ -83,6 +89,11 @@ For HalfCheetah-v1 and Ant-v1, using behavior cloning is needed:
 python main.py --env_id HalfCheetah-v1 --expert_path baselines/ppo1/deterministicppo.HalfCheetah.0.00.pkl --pretrained True --BC_max_iter 10000 --g_step 3 --adversary_entcoeff 1e-3
 ```
 
+![](misc/HalfCheetah-true-reward.png)
+
+**For more detail and trained_model, please see [here](https://github.com/andrewliao11/gail-tf/blob/master/misc/exp.md)**
+
 ## Reference
 - Generative adversarial imitation learning
 - openai/imitation
+- openai/baselines
