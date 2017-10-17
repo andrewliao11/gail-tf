@@ -22,34 +22,34 @@ Legend:
 
 The total return (environment rewards, only used for evaluation):
 
-![](misc/Walker2d-true-reward.png)
+![](Walker2d-true-reward.png)
 
 The episode length and reward from discriminator:
 
-![](misc/Walker2d-length-reward(D).png)
+![](Walker2d-length-reward(D).png)
 
 The loss and accuracy of the discriminator:
 
-![](misc/Walker2d-D.png)
+![](Walker2d-D.png)
 
 Legend:
 
-![](misc/walker2d.png)
+![](walker2d.png)
 
 ## HalfCheetah-v1
 
 The total return (environment rewards, only used for evaluation):
 
-![](misc/HalfCheetah-true-reward.png)
+![](HalfCheetah-true-reward.png)
 
 The episode length and reward from discriminator:
 
-![](misc/HalfCheetah-length-reward(D).png)
+![](HalfCheetah-length-reward(D).png)
 
 The loss and accuracy of the discriminator:
 
-![](misc/HalfCheetah-D.png)
+![](HalfCheetah-D.png)
 
 Legend:
 
-![](misc/halfcheetah.png)
+![](halfcheetah.png)
