@@ -1,7 +1,7 @@
 # gail-tf
 Tensorflow implementation of Generative Imitation Adversarial Learning
 
-**disclaimers**: some code is borrowed from openai/baselines
+**disclaimers**: some code is borrowed from @openai/baselines
 
 ## What's GAIL?
 - model free imtation learning -> low sample efficiency in training time
@@ -107,6 +107,6 @@ python main.py --env_id HalfCheetah-v1 --expert_path baselines/ppo1/deterministi
 
 
 ## Reference
-- Generative adversarial imitation learning
-- openai/imitation
-- openai/baselines
+- Jonathan Ho and Stefano Ermon. Generative adversarial imitation learning, [[arxiv](https://arxiv.org/abs/1606.03476)]
+- @openai/imitation
+- @openai/baselines
