@@ -13,7 +13,7 @@ Tensorflow implementation of Generative Imitation Adversarial Learning
   - Multi-Modal Imitation Learning from Unstructured Demonstrations using Generative Adversarial Nets
   - Robust Imitation of Diverse Behaviors
   
-## requirement
+## Requirement
 - python==3.5.2
 - mujoco-py==0.5.7
 - tensorflow==1.1.0
