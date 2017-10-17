@@ -14,7 +14,7 @@ Tensorflow implementation of Generative Imitation Adversarial Learning
   - Robust Imitation of Diverse Behaviors
   
 ## requirement
-- python 3.5.2
+- python==3.5.2
 - mujoco-py==0.5.7
 - tensorflow==1.1.0
 - gym==0.9.3
@@ -92,6 +92,9 @@ python main.py --env_id HalfCheetah-v1 --expert_path baselines/ppo1/deterministi
 ![](misc/HalfCheetah-true-reward.png)
 
 **For more detail and trained_model, please see [here](https://github.com/andrewliao11/gail-tf/blob/master/misc/exp.md)**
+
+## TODO 
+- Evaluation code
 
 ## Reference
 - Generative adversarial imitation learning
