@@ -66,7 +66,7 @@ Note: The following hyper-parameter setting is the best that I've tested (simple
 
 The different curves below correspond to different expert size (1000,100,10,5).
 
-- Hopper-v1 (Average total return of expert policy: )
+- Hopper-v1 (Average total return of expert policy: 3589)
 
 ```bash
 python main.py --env_id Hopper-v1 --expert_path baselines/ppo1/deterministicppo.Hopper.0.00.pkl --g_step 3 --adversary_entcoeff 0
@@ -74,7 +74,7 @@ python main.py --env_id Hopper-v1 --expert_path baselines/ppo1/deterministicppo.
 
 ![](misc/Hopper-true-reward.png)
 
-- Walker-v1 (Average total return of expert policy: )
+- Walker-v1 (Average total return of expert policy: 4392)
 
 ```bash
 python main.py --env_id Walker2d-v1 --expert_path baselines/ppo1/deterministicppo.Walker2d.0.00.pkl --g_step 3 --adversary_entcoeff 1e-3
@@ -82,7 +82,7 @@ python main.py --env_id Walker2d-v1 --expert_path baselines/ppo1/deterministicpp
 
 ![](misc/Walker2d-true-reward.png)
 
-- HalhCheetah-v1 (Average total return of expert policy: )
+- HalhCheetah-v1 (Average total return of expert policy: 2110)
 
 For HalfCheetah-v1 and Ant-v1, using behavior cloning is needed:
 ```bash
