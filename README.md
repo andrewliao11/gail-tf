@@ -1,5 +1,5 @@
 # gail-tf
-Tensorflow implementation of Generative Imitation Adversarial Learning
+Tensorflow implementation of Generative Adversarial Imitation Learning
 
 **disclaimers**: some code is borrowed from @openai/baselines
 
