@@ -7,8 +7,6 @@ from baselines.common.mpi_adam import MpiAdam
 from baselines.common.mpi_moments import mpi_moments
 from mpi4py import MPI
 from collections import deque
-import pickle as pkl
-import ipdb
 
 # Sample one trajectory (until trajectory end)
 def traj_episode_generator(pi, env, horizon, stochastic):
@@ -29,7 +27,6 @@ def traj_episode_generator(pi, env, horizon, stochastic):
         obs.append(ob)
         news.append(new)
         acs.append(ac)
-        
         ob, rew, new, _ = env.step(ac)
         rews.append(rew)
 
@@ -41,7 +38,7 @@ def traj_episode_generator(pi, env, horizon, stochastic):
             rews = np.array(rews)
             news = np.array(news)
             acs = np.array(acs)
-            yield {"ob":obs, "rew":rews, "new":news, "ac":acs, 
+            yield {"ob":obs, "rew":rews, "new":news, "ac":acs,
                     "ep_ret":cur_ep_ret, "ep_len":cur_ep_len}
             ob = env.reset()
             cur_ep_ret = 0; cur_ep_len = 0; t = 0
@@ -50,7 +47,6 @@ def traj_episode_generator(pi, env, horizon, stochastic):
             obs = []; rews = []; news = []; acs = []
         t += 1
 
-# Sample the episode until the data with `horizon` size
 def traj_segment_generator(pi, env, horizon, stochastic):
     t = 0
     ac = env.action_space.sample() # not used, just so we have the datatype
@@ -148,11 +144,13 @@ def learn(env, policy_func, *,
 
     ob = U.get_placeholder_cached(name="ob")
     ac = pi.pdtype.sample_placeholder([None])
+
     kloldnew = oldpi.pd.kl(pi.pd)
     ent = pi.pd.entropy()
     meankl = U.mean(kloldnew)
     meanent = U.mean(ent)
     pol_entpen = (-entcoeff) * meanent
+
     ratio = tf.exp(pi.pd.logp(ac) - oldpi.pd.logp(ac)) # pnew / pold
     surr1 = ratio * atarg # surrogate from conservative policy iteration
     surr2 = U.clip(ratio, 1.0 - clip_param, 1.0 + clip_param) * atarg #
@@ -175,24 +173,21 @@ def learn(env, policy_func, *,
 
     # Prepare for rollouts
     # ----------------------------------------
-    mode = 'stochastic' if sample_stochastic else 'deterministic'
-    logger.log("Using %s policy"%mode)
-    seg_gen = traj_segment_generator(pi, env, timesteps_per_batch, stochastic=sample_stochastic)
-    traj_gen =  traj_episode_generator(pi, env, timesteps_per_batch, stochastic=sample_stochastic)
+    seg_gen = traj_segment_generator(pi, env, timesteps_per_batch, stochastic=True)
+    traj_gen = traj_episode_generator(pi, env, timesteps_per_batch, stochastic=sample_stochastic)
 
     episodes_so_far = 0
     timesteps_so_far = 0
     iters_so_far = 0
-    sample_trajs = []
     tstart = time.time()
     lenbuffer = deque(maxlen=100) # rolling buffer for episode lengths
     rewbuffer = deque(maxlen=100) # rolling buffer for episode rewards
-    # if provieded model path
-    if load_model_path is not None:
-        U.load_state(load_model_path)
 
     assert sum([max_iters>0, max_timesteps>0, max_episodes>0, max_seconds>0])==1, "Only one time constraint permitted"
 
+    if task == 'sample_trajectory':
+        # not elegant, i know :(
+        sample_trajectory(load_model_path, max_sample_traj, traj_gen, task_name, sample_stochastic)
     while True:
         if callback: callback(locals(), globals())
         if max_timesteps and timesteps_so_far >= max_timesteps:
@@ -211,86 +206,87 @@ def learn(env, policy_func, *,
         else:
             raise NotImplementedError
 
-        if task == "sample_trajectory":
-            logger.log("********** Iteration %i ************"%iters_so_far)
-            traj = traj_gen.__next__()
-            ob, new, ep_ret, ac, rew, ep_len = traj['ob'], traj['new'], traj['ep_ret'], traj['ac'], traj['rew'], traj['ep_len']
-            logger.record_tabular("ep_ret", ep_ret)
-            logger.record_tabular("ep_len", ep_len)
-            logger.record_tabular("immediate reward", np.mean(rew))
-            if MPI.COMM_WORLD.Get_rank()==0:
-                logger.dump_tabular()
-            traj_data = {"ob":ob, "ac":ac, "rew": rew, "ep_ret":ep_ret}
-            sample_trajs.append(traj_data)
-            if iters_so_far > max_sample_traj:
-                sample_ep_rets = [traj["ep_ret"] for traj in sample_trajs]
-                logger.log("Average total return: %f"%(sum(sample_ep_rets)/len(sample_ep_rets)))
-                if sample_stochastic:
-                    task_name = 'stochastic.' + task_name
-                else:
-                    task_name = 'deterministic.' + task_name
-                pkl.dump(sample_trajs, open(task_name+".pkl", "wb"))
-                break
-            iters_so_far += 1
-        elif task == "train":
+        # Save model
+        if iters_so_far % save_per_iter == 0 and ckpt_dir is not None:
+            U.save_state(os.path.join(ckpt_dir, task_name), counter=iters_so_far)
 
-            # Save model
-            if iters_so_far % save_per_iter == 0 and ckpt_dir is not None:
-                U.save_state(os.path.join(ckpt_dir, task_name), counter=iters_so_far)
+        logger.log("********** Iteration %i ************"%iters_so_far)
 
-            logger.log("********** Iteration %i ************"%iters_so_far)
-  
-            seg = seg_gen.__next__()
-            add_vtarg_and_adv(seg, gamma, lam)
+        seg = seg_gen.__next__()
+        add_vtarg_and_adv(seg, gamma, lam)
 
-            # ob, ac, atarg, ret, td1ret = map(np.concatenate, (obs, acs, atargs, rets, td1rets))
-            ob, ac, atarg, tdlamret = seg["ob"], seg["ac"], seg["adv"], seg["tdlamret"]
-            vpredbefore = seg["vpred"] # predicted value function before udpate
-            atarg = (atarg - atarg.mean()) / atarg.std() # standardized advantage function estimate
-            
-            d = Dataset(dict(ob=ob, ac=ac, atarg=atarg, vtarg=tdlamret), shuffle=not pi.recurrent)
-            optim_batchsize = optim_batchsize or ob.shape[0]
+        # ob, ac, atarg, ret, td1ret = map(np.concatenate, (obs, acs, atargs, rets, td1rets))
+        ob, ac, atarg, tdlamret = seg["ob"], seg["ac"], seg["adv"], seg["tdlamret"]
+        vpredbefore = seg["vpred"] # predicted value function before udpate
+        atarg = (atarg - atarg.mean()) / atarg.std() # standardized advantage function estimate
+        d = Dataset(dict(ob=ob, ac=ac, atarg=atarg, vtarg=tdlamret), shuffle=not pi.recurrent)
+        optim_batchsize = optim_batchsize or ob.shape[0]
 
-            if hasattr(pi, "ob_rms"): pi.ob_rms.update(ob) # update running mean/std for policy
+        if hasattr(pi, "ob_rms"): pi.ob_rms.update(ob) # update running mean/std for policy
 
-            assign_old_eq_new() # set old parameter values to new parameter values
-            logger.log("Optimizing...")
-            logger.log(fmt_row(13, loss_names))
-            # Here we do a bunch of optimization epochs over the data
-            for _ in range(optim_epochs):
-                losses = [] # list of tuples, each of which gives the loss for a minibatch
-                for batch in d.iterate_once(optim_batchsize):
-                    *newlosses, g = lossandgrad(batch["ob"], batch["ac"], batch["atarg"], batch["vtarg"], cur_lrmult)
-                    adam.update(g, optim_stepsize * cur_lrmult) 
-                    losses.append(newlosses)
-                logger.log(fmt_row(13, np.mean(losses, axis=0)))
-
-            logger.log("Evaluating losses...")
-            losses = []
+        assign_old_eq_new() # set old parameter values to new parameter values
+        logger.log("Optimizing...")
+        logger.log(fmt_row(13, loss_names))
+        # Here we do a bunch of optimization epochs over the data
+        for _ in range(optim_epochs):
+            losses = [] # list of tuples, each of which gives the loss for a minibatch
             for batch in d.iterate_once(optim_batchsize):
-                newlosses = compute_losses(batch["ob"], batch["ac"], batch["atarg"], batch["vtarg"], cur_lrmult)
-                losses.append(newlosses)            
-            meanlosses,_,_ = mpi_moments(losses, axis=0)
-            logger.log(fmt_row(13, meanlosses))
-            for (lossval, name) in zipsame(meanlosses, loss_names):
-                logger.record_tabular("loss_"+name, lossval)
-            logger.record_tabular("ev_tdlam_before", explained_variance(vpredbefore, tdlamret))
-            lrlocal = (seg["ep_lens"], seg["ep_rets"]) # local values
-            listoflrpairs = MPI.COMM_WORLD.allgather(lrlocal) # list of tuples
-            lens, rews = map(flatten_lists, zip(*listoflrpairs))
-            lenbuffer.extend(lens)
-            rewbuffer.extend(rews)
-            logger.record_tabular("EpLenMean", np.mean(lenbuffer))
-            logger.record_tabular("EpRewMean", np.mean(rewbuffer))
-            logger.record_tabular("EpThisIter", len(lens))
-            episodes_so_far += len(lens)
-            timesteps_so_far += sum(lens)
-            iters_so_far += 1
-            logger.record_tabular("EpisodesSoFar", episodes_so_far)
-            logger.record_tabular("TimestepsSoFar", timesteps_so_far)
-            logger.record_tabular("TimeElapsed", time.time() - tstart)
-            if MPI.COMM_WORLD.Get_rank()==0:
-                logger.dump_tabular()
+                *newlosses, g = lossandgrad(batch["ob"], batch["ac"], batch["atarg"], batch["vtarg"], cur_lrmult)
+                adam.update(g, optim_stepsize * cur_lrmult) 
+                losses.append(newlosses)
+            logger.log(fmt_row(13, np.mean(losses, axis=0)))
+
+        logger.log("Evaluating losses...")
+        losses = []
+        for batch in d.iterate_once(optim_batchsize):
+            newlosses = compute_losses(batch["ob"], batch["ac"], batch["atarg"], batch["vtarg"], cur_lrmult)
+            losses.append(newlosses)            
+        meanlosses,_,_ = mpi_moments(losses, axis=0)
+        logger.log(fmt_row(13, meanlosses))
+        for (lossval, name) in zipsame(meanlosses, loss_names):
+            logger.record_tabular("loss_"+name, lossval)
+        logger.record_tabular("ev_tdlam_before", explained_variance(vpredbefore, tdlamret))
+        lrlocal = (seg["ep_lens"], seg["ep_rets"]) # local values
+        listoflrpairs = MPI.COMM_WORLD.allgather(lrlocal) # list of tuples
+        lens, rews = map(flatten_lists, zip(*listoflrpairs))
+        lenbuffer.extend(lens)
+        rewbuffer.extend(rews)
+        logger.record_tabular("EpLenMean", np.mean(lenbuffer))
+        logger.record_tabular("EpRewMean", np.mean(rewbuffer))
+        logger.record_tabular("EpThisIter", len(lens))
+        episodes_so_far += len(lens)
+        timesteps_so_far += sum(lens)
+        iters_so_far += 1
+        logger.record_tabular("EpisodesSoFar", episodes_so_far)
+        logger.record_tabular("TimestepsSoFar", timesteps_so_far)
+        logger.record_tabular("TimeElapsed", time.time() - tstart)
+        if MPI.COMM_WORLD.Get_rank()==0:
+            logger.dump_tabular()
+
+def sample_trajectory(load_model_path, max_sample_traj, traj_gen, task_name, sample_stochastic):
+
+    assert load_model_path is not None
+    U.load_state(load_model_path)
+    sample_trajs = []
+    for iters_so_far in range(max_sample_traj):
+        logger.log("********** Iteration %i ************"%iters_so_far)
+        traj = traj_gen.__next__()
+        ob, new, ep_ret, ac, rew, ep_len = traj['ob'], traj['new'], traj['ep_ret'], traj['ac'], traj['rew'], traj['ep_len']
+        logger.record_tabular("ep_ret", ep_ret)
+        logger.record_tabular("ep_len", ep_len)
+        logger.record_tabular("immediate reward", np.mean(rew))
+        if MPI.COMM_WORLD.Get_rank()==0:
+            logger.dump_tabular()
+        traj_data = {"ob":ob, "ac":ac, "rew": rew, "ep_ret":ep_ret}
+        sample_trajs.append(traj_data)
+
+    sample_ep_rets = [traj["ep_ret"] for traj in sample_trajs]
+    logger.log("Average total return: %f"%(sum(sample_ep_rets)/len(sample_ep_rets)))
+    if sample_stochastic:
+        task_name = 'stochastic.' + task_name
+    else:
+        task_name = 'deterministic.' + task_name
+    pkl.dump(sample_trajs, open(task_name+".pkl", "wb"))
 
 def flatten_lists(listoflists):
     return [el for list_ in listoflists for el in list_]

@@ -37,7 +37,7 @@ The trained model will save in ```./checkpoint```
 # if use determinsitic policy to sample
 python run_mujoco.py --env_id $ENV_ID --task sample_trajectory --load_model_path $PATH_TO_CKPT
 # if use stochastic policy to sample
-python run_mujoco.py --env_id $ENV_ID --sample_stochastic --task sample_trajectory --load_model_path $PATH_TO_CKPT
+python run_mujoco.py --env_id $ENV_ID --sample_stochastic True --task sample_trajectory --load_model_path $PATH_TO_CKPT
 ```
 
 This will generate a pickle file that store the expert trajectories in ```./XXX.pkl``` (eg. deterministic.ppo.Hopper.0.00.pkl)
@@ -69,7 +69,7 @@ Evaluating your agent with deterministic/stochastic policy.
 # for deterministic policy
 python main.py --env_id $ENV_ID --task evaluate --load_model_path $PATH_TO_CKPT
 # for stochastic policy
-python main.py --env_id $ENV_ID --task evaluate --stocahstic_policy --load_model_path $PATH_TO_CKPT
+python main.py --env_id $ENV_ID --task evaluate --stocahstic_policy True --load_model_path $PATH_TO_CKPT
 ```
 
 ## Results

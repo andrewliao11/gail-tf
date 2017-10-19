@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import sys
-sys.path.append("/home/andrewliao11/gail-tf")
+sys.path.append("/home/andrewliao11/usc/gail-tf")
 from baselines.common import set_global_seeds, tf_util as U
 from baselines import bench
 import os.path as osp
