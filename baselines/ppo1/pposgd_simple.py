@@ -7,6 +7,7 @@ from baselines.common.mpi_adam import MpiAdam
 from baselines.common.mpi_moments import mpi_moments
 from mpi4py import MPI
 from collections import deque
+import pickle as pkl
 
 # Sample one trajectory (until trajectory end)
 def traj_episode_generator(pi, env, horizon, stochastic):
