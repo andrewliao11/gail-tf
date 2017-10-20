@@ -24,10 +24,14 @@ I separate the code into two parts: (1) Sampling expert data, (2) Imitation lear
 
 ### Sampling expert data
 
-- Train expert policy using PPO, from openai/baselines
+- Train expert policy using PPO/TRPO, from openai/baselines
 
 ```bash
+# using ppo
 cd $GAIL-TF/baselines/ppo1
+python run_mujoco.py --env_id $ENV_ID-v1
+# using trpo
+cd $GAIL-TF/baselines/trpo_mpi
 python run_mujoco.py --env_id $ENV_ID-v1
 ```
 The trained model will save in ```./checkpoint```

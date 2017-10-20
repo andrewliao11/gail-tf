@@ -189,6 +189,7 @@ def learn(env, policy_func, *,
     if task == 'sample_trajectory':
         # not elegant, i know :(
         sample_trajectory(load_model_path, max_sample_traj, traj_gen, task_name, sample_stochastic)
+        return
     while True:
         if callback: callback(locals(), globals())
         if max_timesteps and timesteps_so_far >= max_timesteps:

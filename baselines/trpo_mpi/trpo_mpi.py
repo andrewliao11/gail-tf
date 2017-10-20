@@ -9,6 +9,7 @@ from collections import deque
 from baselines.common.mpi_adam import MpiAdam
 from baselines.common.cg import cg
 from contextlib import contextmanager
+import pickle as pkl
 
 # Sample one trajectory (until trajectory end)
 def traj_episode_generator(pi, env, horizon, stochastic):
@@ -29,7 +30,6 @@ def traj_episode_generator(pi, env, horizon, stochastic):
         obs.append(ob)
         news.append(new)
         acs.append(ac)
-
         ob, rew, new, _ = env.step(ac)
         rews.append(rew)
 
@@ -218,23 +218,21 @@ def learn(env, policy_func, *,
 
     # Prepare for rollouts
     # ----------------------------------------
-    mode = 'stochastic' if sample_stochastic else 'deterministic'
-    logger.log("Using %s policy"%mode)
-    seg_gen = traj_segment_generator(pi, env, timesteps_per_batch, stochastic=sample_stochastic)
+    seg_gen = traj_segment_generator(pi, env, timesteps_per_batch, stochastic=True)
     traj_gen =  traj_episode_generator(pi, env, timesteps_per_batch, stochastic=sample_stochastic)
 
     episodes_so_far = 0
     timesteps_so_far = 0
     iters_so_far = 0
-    sample_trajs = []
     tstart = time.time()
     lenbuffer = deque(maxlen=40) # rolling buffer for episode lengths
     rewbuffer = deque(maxlen=40) # rolling buffer for episode rewards
-    # if provieded model path
-    if load_model_path is not None:
-        U.load_state(load_model_path)
 
     assert sum([max_iters>0, max_timesteps>0, max_episodes>0])==1
+    if task == 'sample_trajectory':
+        # not elegant, i know :(
+        sample_trajectory(load_model_path, max_sample_traj, traj_gen, task_name, sample_stochastic)
+        return
 
     while True:        
         if callback: callback(locals(), globals())
@@ -245,124 +243,126 @@ def learn(env, policy_func, *,
         elif max_iters and iters_so_far >= max_iters:
             break
         logger.log("********** Iteration %i ************"%iters_so_far)
+        # Save model
+        if iters_so_far % save_per_iter == 0 and ckpt_dir is not None:
+            U.save_state(os.path.join(ckpt_dir, task_name), counter=iters_so_far)
 
+        with timed("sampling"):
+            seg = seg_gen.__next__()
+        add_vtarg_and_adv(seg, gamma, lam)
 
-        if task == "sample_trajectory":
-            traj = traj_gen.__next__()
-            ob, new, ep_ret, ac, rew, ep_len = traj['ob'], traj['new'], traj['ep_ret'], traj['ac'], traj['rew'], traj['ep_len']
-            logger.record_tabular("ep_ret", ep_ret)
-            logger.record_tabular("ep_len", ep_len)
-            logger.record_tabular("immediate reward", np.mean(rew))
-            if MPI.COMM_WORLD.Get_rank()==0:
-                logger.dump_tabular()
-            traj_data = {"ob":ob, "ac":ac, "rew": rew, "ep_ret":ep_ret}
-            sample_trajs.append(traj_data)
-            if iters_so_far > max_sample_traj:
-                sample_ep_rets = [traj["ep_ret"] for traj in sample_trajs]
-                logger.log("Average total return: %f"%(sum(sample_ep_rets)/len(sample_ep_rets)))
-                if sample_stochastic:
-                    task_name = 'stochastic.' + task_name
+        # ob, ac, atarg, ret, td1ret = map(np.concatenate, (obs, acs, atargs, rets, td1rets))
+        ob, ac, atarg, tdlamret = seg["ob"], seg["ac"], seg["adv"], seg["tdlamret"]
+        vpredbefore = seg["vpred"] # predicted value function before udpate
+        atarg = (atarg - atarg.mean()) / atarg.std() # standardized advantage function estimate
+
+        if hasattr(pi, "ret_rms"): pi.ret_rms.update(tdlamret)
+        if hasattr(pi, "ob_rms"): pi.ob_rms.update(ob) # update running mean/std for policy
+
+        args = seg["ob"], seg["ac"], atarg
+        fvpargs = [arr[::5] for arr in args]
+        def fisher_vector_product(p):
+            return allmean(compute_fvp(p, *fvpargs)) + cg_damping * p
+
+        assign_old_eq_new() # set old parameter values to new parameter values
+        with timed("computegrad"):
+            *lossbefore, g = compute_lossandgrad(*args)
+        lossbefore = allmean(np.array(lossbefore))
+        g = allmean(g)
+        if np.allclose(g, 0):
+            logger.log("Got zero gradient. not updating")
+        else:
+            with timed("cg"):
+                stepdir = cg(fisher_vector_product, g, cg_iters=cg_iters, verbose=rank==0)
+            assert np.isfinite(stepdir).all()
+            shs = .5*stepdir.dot(fisher_vector_product(stepdir))
+            lm = np.sqrt(shs / max_kl)
+            # logger.log("lagrange multiplier:", lm, "gnorm:", np.linalg.norm(g))
+            fullstep = stepdir / lm
+            expectedimprove = g.dot(fullstep)
+            surrbefore = lossbefore[0]
+            stepsize = 1.0
+            thbefore = get_flat()
+            for _ in range(10):
+                thnew = thbefore + fullstep * stepsize
+                set_from_flat(thnew)
+                meanlosses = surr, kl, *_ = allmean(np.array(compute_losses(*args)))
+                improve = surr - surrbefore
+                logger.log("Expected: %.3f Actual: %.3f"%(expectedimprove, improve))
+                if not np.isfinite(meanlosses).all():
+                    logger.log("Got non-finite value of losses -- bad!")
+                elif kl > max_kl * 1.5:
+                    logger.log("violated KL constraint. shrinking step.")
+                elif improve < 0:
+                    logger.log("surrogate didn't improve. shrinking step.")
                 else:
-                    task_name = 'deterministic' + task_name
-                pkl.dump(sample_trajs, open(task_name+".pkl", "wb"))
-                break
-            iters_so_far += 1
-        elif task == "train":
-            # Save model
-            if iters_so_far % save_per_iter == 0 and ckpt_dir is not None:
-                U.save_state(os.path.join(ckpt_dir, task_name), counter=iters_so_far)
-
-            with timed("sampling"):
-                seg = seg_gen.__next__()
-            add_vtarg_and_adv(seg, gamma, lam)
-
-            # ob, ac, atarg, ret, td1ret = map(np.concatenate, (obs, acs, atargs, rets, td1rets))
-            ob, ac, atarg, tdlamret = seg["ob"], seg["ac"], seg["adv"], seg["tdlamret"]
-            vpredbefore = seg["vpred"] # predicted value function before udpate
-            atarg = (atarg - atarg.mean()) / atarg.std() # standardized advantage function estimate
-
-            if hasattr(pi, "ret_rms"): pi.ret_rms.update(tdlamret)
-            if hasattr(pi, "ob_rms"): pi.ob_rms.update(ob) # update running mean/std for policy
-
-            args = seg["ob"], seg["ac"], atarg
-            fvpargs = [arr[::5] for arr in args]
-            def fisher_vector_product(p):
-                return allmean(compute_fvp(p, *fvpargs)) + cg_damping * p
-
-            assign_old_eq_new() # set old parameter values to new parameter values
-            with timed("computegrad"):
-                *lossbefore, g = compute_lossandgrad(*args)
-            lossbefore = allmean(np.array(lossbefore))
-            g = allmean(g)
-            if np.allclose(g, 0):
-                logger.log("Got zero gradient. not updating")
+                    logger.log("Stepsize OK!")
+                    break
+                stepsize *= .5
             else:
-                with timed("cg"):
-                    stepdir = cg(fisher_vector_product, g, cg_iters=cg_iters, verbose=rank==0)
-                assert np.isfinite(stepdir).all()
-                shs = .5*stepdir.dot(fisher_vector_product(stepdir))
-                lm = np.sqrt(shs / max_kl)
-                # logger.log("lagrange multiplier:", lm, "gnorm:", np.linalg.norm(g))
-                fullstep = stepdir / lm
-                expectedimprove = g.dot(fullstep)
-                surrbefore = lossbefore[0]
-                stepsize = 1.0
-                thbefore = get_flat()
-                for _ in range(10):
-                    thnew = thbefore + fullstep * stepsize
-                    set_from_flat(thnew)
-                    meanlosses = surr, kl, *_ = allmean(np.array(compute_losses(*args)))
-                    improve = surr - surrbefore
-                    logger.log("Expected: %.3f Actual: %.3f"%(expectedimprove, improve))
-                    if not np.isfinite(meanlosses).all():
-                        logger.log("Got non-finite value of losses -- bad!")
-                    elif kl > max_kl * 1.5:
-                        logger.log("violated KL constraint. shrinking step.")
-                    elif improve < 0:
-                        logger.log("surrogate didn't improve. shrinking step.")
-                    else:
-                        logger.log("Stepsize OK!")
-                        break
-                    stepsize *= .5
-                else:
-                    logger.log("couldn't compute a good step")
-                    set_from_flat(thbefore)
-                if nworkers > 1 and iters_so_far % 20 == 0:
-                    paramsums = MPI.COMM_WORLD.allgather((thnew.sum(), vfadam.getflat().sum())) # list of tuples
-                    assert all(np.allclose(ps, paramsums[0]) for ps in paramsums[1:])
+                logger.log("couldn't compute a good step")
+                set_from_flat(thbefore)
+            if nworkers > 1 and iters_so_far % 20 == 0:
+                paramsums = MPI.COMM_WORLD.allgather((thnew.sum(), vfadam.getflat().sum())) # list of tuples
+                assert all(np.allclose(ps, paramsums[0]) for ps in paramsums[1:])
 
-            for (lossname, lossval) in zip(loss_names, meanlosses):
-                logger.record_tabular(lossname, lossval)
+        for (lossname, lossval) in zip(loss_names, meanlosses):
+            logger.record_tabular(lossname, lossval)
 
-            with timed("vf"):
+        with timed("vf"):
 
-                for _ in range(vf_iters):
-                    for (mbob, mbret) in dataset.iterbatches((seg["ob"], seg["tdlamret"]), 
-                      include_final_partial_batch=False, batch_size=64):
-                        g = allmean(compute_vflossandgrad(mbob, mbret))
-                        vfadam.update(g, vf_stepsize)
+            for _ in range(vf_iters):
+                for (mbob, mbret) in dataset.iterbatches((seg["ob"], seg["tdlamret"]), 
+                include_final_partial_batch=False, batch_size=64):
+                    g = allmean(compute_vflossandgrad(mbob, mbret))
+                    vfadam.update(g, vf_stepsize)
 
-            logger.record_tabular("ev_tdlam_before", explained_variance(vpredbefore, tdlamret))
+        logger.record_tabular("ev_tdlam_before", explained_variance(vpredbefore, tdlamret))
 
-            lrlocal = (seg["ep_lens"], seg["ep_rets"]) # local values
-            listoflrpairs = MPI.COMM_WORLD.allgather(lrlocal) # list of tuples
-            lens, rews = map(flatten_lists, zip(*listoflrpairs))
-            lenbuffer.extend(lens)
-            rewbuffer.extend(rews)
+        lrlocal = (seg["ep_lens"], seg["ep_rets"]) # local values
+        listoflrpairs = MPI.COMM_WORLD.allgather(lrlocal) # list of tuples
+        lens, rews = map(flatten_lists, zip(*listoflrpairs))
+        lenbuffer.extend(lens)
+        rewbuffer.extend(rews)
 
-            logger.record_tabular("EpLenMean", np.mean(lenbuffer))
-            logger.record_tabular("EpRewMean", np.mean(rewbuffer))
-            logger.record_tabular("EpThisIter", len(lens))
-            episodes_so_far += len(lens)
-            timesteps_so_far += sum(lens)
-            iters_so_far += 1
+        logger.record_tabular("EpLenMean", np.mean(lenbuffer))
+        logger.record_tabular("EpRewMean", np.mean(rewbuffer))
+        logger.record_tabular("EpThisIter", len(lens))
+        episodes_so_far += len(lens)
+        timesteps_so_far += sum(lens)
+        iters_so_far += 1
 
-            logger.record_tabular("EpisodesSoFar", episodes_so_far)
-            logger.record_tabular("TimestepsSoFar", timesteps_so_far)
-            logger.record_tabular("TimeElapsed", time.time() - tstart)
+        logger.record_tabular("EpisodesSoFar", episodes_so_far)
+        logger.record_tabular("TimestepsSoFar", timesteps_so_far)
+        logger.record_tabular("TimeElapsed", time.time() - tstart)
 
-            if rank==0:
-                logger.dump_tabular()
+        if rank==0:
+            logger.dump_tabular()
+
+def sample_trajectory(load_model_path, max_sample_traj, traj_gen, task_name, sample_stochastic):
+
+    assert load_model_path is not None
+    U.load_state(load_model_path)
+    sample_trajs = []
+    for iters_so_far in range(max_sample_traj):
+        logger.log("********** Iteration %i ************"%iters_so_far)
+        traj = traj_gen.__next__()
+        ob, new, ep_ret, ac, rew, ep_len = traj['ob'], traj['new'], traj['ep_ret'], traj['ac'], traj['rew'], traj['ep_len']
+        logger.record_tabular("ep_ret", ep_ret)
+        logger.record_tabular("ep_len", ep_len)
+        logger.record_tabular("immediate reward", np.mean(rew))
+        if MPI.COMM_WORLD.Get_rank()==0:
+            logger.dump_tabular()
+        traj_data = {"ob":ob, "ac":ac, "rew": rew, "ep_ret":ep_ret}
+        sample_trajs.append(traj_data)
+
+    sample_ep_rets = [traj["ep_ret"] for traj in sample_trajs]
+    logger.log("Average total return: %f"%(sum(sample_ep_rets)/len(sample_ep_rets)))
+    if sample_stochastic:
+        task_name = 'stochastic.' + task_name
+    else:
+        task_name = 'deterministic.' + task_name
+    pkl.dump(sample_trajs, open(task_name+".pkl", "wb"))
 
 def flatten_lists(listoflists):
     return [el for list_ in listoflists for el in list_]

@@ -15,18 +15,22 @@ def learn(env, policy_func, dataset, optim_batch_size=128, max_iters=1e4,
   ob = U.get_placeholder_cached(name="ob")
   ac = pi.pdtype.sample_placeholder([None])
   stochastic = U.get_placeholder_cached(name="stochastic")
-  loss = tf.reduce_mean(tf.square(ac-pi.ac))
+  # use maximum liklihood
+  loss = -tf.reduce_mean(pi.pd.logp(ac))
+  # use mean square error
+  #loss = tf.reduce_mean(tf.square(ac-pi.ac))
   var_list = pi.get_trainable_variables()
   adam = MpiAdam(var_list, epsilon=adam_epsilon)
   lossandgrad = U.function([ob, ac, stochastic], [loss]+[U.flatgrad(loss, var_list)])
 
   U.initialize()
   adam.sync()
-  logger.log("Pretraining with Behavior Cloning...")
+  logger.log("Training with Behavior Cloning...")
   for iter_so_far in tqdm(range(int(max_iters))):
     ob_expert, ac_expert = dataset.get_next_batch(optim_batch_size)
     loss, g = lossandgrad(ob_expert, ac_expert, True)
     adam.update(g, optim_stepsize)
+  # save checkpoint in a temporary file
   savedir_fname = tempfile.TemporaryDirectory().name
   U.save_state(savedir_fname, var_list=pi.get_variables())
   return savedir_fname
