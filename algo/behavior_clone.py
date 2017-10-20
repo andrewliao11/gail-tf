@@ -4,10 +4,11 @@ from baselines import logger
 from tqdm import tqdm
 from baselines.common.mpi_adam import MpiAdam
 import tempfile, os
+from common.statistics import stats
 import ipdb
 
-def evaluate(env, policy_fn, load_model_path, stocahstic_policy=False):
-  from trpo_mpi.py import traj_episode_generator
+def evaluate(env, policy_func, load_model_path, stocahstic_policy=False, number_trajs=10):
+  from algo.trpo_mpi import traj_episode_generator
   ob_space = env.observation_space
   ac_space = env.action_space
   pi = policy_func("pi", ob_space, ac_space) # Construct network for new policy
@@ -15,7 +16,7 @@ def evaluate(env, policy_fn, load_model_path, stocahstic_policy=False):
   ob = U.get_placeholder_cached(name="ob")
   ac = pi.pdtype.sample_placeholder([None])
   stochastic = U.get_placeholder_cached(name="stochastic")
-  ep_gen = traj_episode_generator(pi, env, timesteps_per_batch=1024, stochastic=stocahstic_policy)
+  ep_gen = traj_episode_generator(pi, env, 1024, stochastic=stocahstic_policy)
   U.load_state(load_model_path)
   len_list = []
   ret_list = []
@@ -57,14 +58,14 @@ def learn(env, policy_func, dataset, pretrained, optim_batch_size=128, max_iters
     loss, g = lossandgrad(ob_expert, ac_expert, True)
     adam.update(g, optim_stepsize)
     if not pretrained:
-      ep_stats.add_all_summary(writer, [loss], iters_so_far)
+      ep_stats.add_all_summary(writer, [loss], iter_so_far)
     if iter_so_far % val_per_iter == 0:
       ob_expert, ac_expert = dataset.get_next_batch(-1, 'val')
       loss, g = lossandgrad(ob_expert, ac_expert, False)
       logger.log("Validation:")
       logger.log("Loss: %f"%loss)
       if not pretrained:
-        U.save_state(os.path.join(ckpt_dir, task_name), counter=iters_so_far)
+        U.save_state(os.path.join(ckpt_dir, task_name), counter=iter_so_far)
   if pretrained:
     savedir_fname = tempfile.TemporaryDirectory().name
     U.save_state(savedir_fname, var_list=pi.get_variables())

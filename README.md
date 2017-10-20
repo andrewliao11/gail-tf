@@ -1,5 +1,5 @@
 # gail-tf
-Tensorflow implementation of Generative Adversarial Imitation Learning
+Tensorflow implementation of Generative Adversarial Imitation Learning (and behavior cloning)
 
 **disclaimers**: some code is borrowed from @openai/baselines
 
@@ -20,7 +20,7 @@ Tensorflow implementation of Generative Adversarial Imitation Learning
 - gym==0.9.3
 
 ## Run the code
-I separate the code into two parts: (1) Sampling expert data, (2) Imitation learning with GAIL
+I separate the code into two parts: (1) Sampling expert data, (2) Imitation learning with GAIL/BC
 
 ### Sampling expert data
 
@@ -76,6 +76,24 @@ python main.py --env_id $ENV_ID --task evaluate --load_model_path $PATH_TO_CKPT
 python main.py --env_id $ENV_ID --task evaluate --stocahstic_policy True --load_model_path $PATH_TO_CKPT
 ```
 
+### Imitation with Behavior Cloning
+
+Imitation learning with Behavior cloning
+
+```bash
+python main.py --env_id $ENV_ID --algo bc --load_expert_path $PICKLE_PATH
+```
+
+### Evaluation of your BC agent
+
+Evaluate your agent with deterministic/stochastic policy.
+
+```bash
+# for deterministic policy
+python main.py --env_id $ENV_ID --algo bc --task evalaute --load_model_path $PATH_TO_CKPT
+# for stochastic policy
+python main.py --env_id $ENV_ID --algo bc --task evalaute--stocahstic_policy True --load_model_path $PATH_TO_CKPT
+```
 ## Results
 
 Note: The following hyper-parameter setting is the best that I've tested (simple grid search on setting with 1500 trajectories), just for your information.
@@ -107,7 +125,9 @@ python main.py --env_id HalfCheetah-v1 --expert_path baselines/ppo1/deterministi
 
 ![](misc/HalfCheetah-true-reward.png)
 
-**You can find more details [here](https://github.com/andrewliao11/gail-tf/blob/master/misc/exp.md) and GAIL policy [here](https://drive.google.com/drive/folders/0B3fKFm-j0RqeN2VTTU8tc19UVk0?usp=sharing)**
+**You can find more details [here](https://github.com/andrewliao11/gail-tf/blob/master/misc/exp.md), 
+GAIL policy [here](https://drive.google.com/drive/folders/0B3fKFm-j0RqeRnZMTUJHSmdIdlU?usp=sharing), 
+and BC policy [here](https://drive.google.com/drive/folders/0B3fKFm-j0RqeVFFmMWpHMk85cUk?usp=sharing)**
 
 
 ## Reference
