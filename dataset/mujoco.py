@@ -1,13 +1,42 @@
 import sys
-sys.path.append("/home/andrewliao11/gail-tf")
+sys.path.append("/home/andrewliao11/usc/gail-tf")
 from baselines import logger
 import pickle as pkl
 import numpy as np
 from tqdm import tqdm
 import ipdb
 
+class Dset(object):
+    def __init__(self, inputs, labels, randomize):
+        self.inputs = inputs
+        self.labels = labels
+        assert len(self.inputs) == len(self.labels)
+        self.randomize = randomize
+        self.num_pairs = len(inputs)
+        self.init_pointer()
+       
+    def init_pointer(self):
+        self.pointer = 0
+        if self.randomize:
+            idx = np.arange(self.num_pairs)
+            np.random.shuffle(idx)
+            self.inputs = self.inputs[idx, :]
+            self.labels = self.labels[idx, :]
+
+    def get_next_batch(self, batch_size):
+        # if batch_size is negative -> return all
+        if batch_size < 0:
+            return self.inputs, self.labels
+        if self.pointer + batch_size >= self.num_pairs:
+            self.init_pointer()
+        end = self.pointer + batch_size
+        inputs = self.inputs[self.pointer:end, :]
+        labels = self.labels[self.pointer:end, :]
+        self.pointer = end
+        return inputs, labels
+
 class Mujoco_Dset(object):
-    def __init__(self, expert_path, ret_threshold=None, traj_limitation=np.inf, random=True):
+    def __init__(self, expert_path, train_fraction=0.7, ret_threshold=None, traj_limitation=np.inf, randomize=True):
         with open(expert_path, "rb") as f:
             traj_data = pkl.load(f)
         obs = []
@@ -34,8 +63,13 @@ class Mujoco_Dset(object):
             self.acs = np.squeeze(self.acs)
         assert len(self.obs) == len(self.acs)
         self.num_transition = len(self.obs)
-        self.randomize = random
-        self.init_pointer()
+        self.randomize = randomize
+        self.dset = Dset(self.obs, self.acs, self.randomize)
+        # for behavior cloning
+        self.train_set = Dset(self.obs[:int(self.num_transition*train_fraction),:], 
+                      self.acs[:int(self.num_transition*train_fraction),:], self.randomize)
+        self.val_set = Dset(self.obs[int(self.num_transition*train_fraction):,:], 
+                      self.acs[int(self.num_transition*train_fraction):,:], self.randomize)
         self.log_info()
 
     def log_info(self):
@@ -44,22 +78,15 @@ class Mujoco_Dset(object):
         logger.log("Average episode length: %f"%self.avg_len)
         logger.log("Average returns: %f"%self.avg_ret)
 
-    def init_pointer(self):
-        self.pointer = 0
-        if self.randomize:
-            idx = np.arange(self.num_transition)
-            np.random.shuffle(idx)
-            self.obs = self.obs[idx, :]
-            self.acs = self.acs[idx, :]
-
-    def get_next_batch(self, batch_size):
-        if self.pointer + batch_size >= self.num_transition:
-            self.init_pointer()
-        end = self.pointer + batch_size
-        obs = self.obs[self.pointer:end, :]
-        acs = self.acs[self.pointer:end, :]
-        self.pointer = end
-        return obs, acs
+    def get_next_batch(self, batch_size, split=None):
+        if split is None:
+            return self.dset.get_next_batch(batch_size)
+        elif split == 'train':
+            return self.train_set.get_next_batch(batch_size)
+        elif split == 'val':
+            return self.val_set.get_next_batch(batch_size)
+        else:
+            raise NotImplementedError
 
     def plot(self):
         import matplotlib.pyplot as plt

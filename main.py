@@ -1,7 +1,6 @@
 import argparse
-from dataset.mujoco import Mujoco_Dset
 from baselines.common import set_global_seeds, tf_util as U
-import gym, logging
+import gym, logging, sys
 from baselines import bench
 import os.path as osp
 from baselines import logger
@@ -14,7 +13,7 @@ def argsparser():
     parser.add_argument('--env_id', help='environment ID', default='Hopper-v1')
     parser.add_argument('--seed', help='RNG seed', type=int, default=0)
     parser.add_argument('--num_cpu', help='number of cpu to used', type=int, default=1)
-    parser.add_argument('--expert_path', type=str, default='baselines/ppo1/deterministicppo.Hopper.0.00.pkl')
+    parser.add_argument('--expert_path', type=str, default='baselines/ppo1/deterministic.ppo.Hopper.0.00.pkl')
     parser.add_argument('--checkpoint_dir', help='the directory to save model', default='checkpoint')
     parser.add_argument('--log_dir', help='the directory to save log file', default='log')
     parser.add_argument('--load_model_path', help='if provided, load the model', type=str, default=None)
@@ -45,12 +44,17 @@ def argsparser():
     return parser.parse_args()
 
 def get_task_name(args):
-    task_name = args.algo + "_gail."
-    if args.pretrained: task_name += "with_pretrained."
-    if args.traj_limitation != np.inf: task_name += "traj_limitation_%d."%args.traj_limitation
-    task_name += args.env_id.split("-")[0]
-    if args.ret_threshold > 0: task_name += ".return_threshold_%d" % args.ret_threshold
-    task_name = task_name + ".g_step_" + str(args.g_step) + ".d_step_" + str(args.d_step) + \
+    if args.algo == 'bc':
+        task_name = 'behavior_cloning.'
+        if args.traj_limitation != np.inf: task_name += "traj_limitation_%d."%args.traj_limitation
+        task_name += args.env_id.split("-")[0]
+    else:
+        task_name = args.algo + "_gail."
+        if args.pretrained: task_name += "with_pretrained."
+        if args.traj_limitation != np.inf: task_name += "traj_limitation_%d."%args.traj_limitation
+        task_name += args.env_id.split("-")[0]
+        if args.ret_threshold > 0: task_name += ".return_threshold_%d" % args.ret_threshold
+        task_name = task_name + ".g_step_" + str(args.g_step) + ".d_step_" + str(args.d_step) + \
                 ".policy_entcoeff_" + str(args.policy_entcoeff) + ".adversary_entcoeff_" + str(args.adversary_entcoeff)
     return task_name
 
@@ -71,12 +75,17 @@ def main(args):
     args.log_dir = osp.join(args.log_dir, task_name)
     dataset = Mujoco_Dset(expert_path=args.expert_path, ret_threshold=args.ret_threshold, traj_limitation=args.traj_limitation)
     pretrained_weight = None
-    if args.pretrained:
+    if (args.pretrained and args.task == 'train') or args.algo == 'bc':
         # Pretrain with behavior cloning
         from algo import behavior_clone
+        if args.algo == 'bc' and args.task == 'evaluate':
+            behavior_clone.evaluate(env, policy_fn, args.load_model_path, stocahstic_policy=args.stocahstic_policy)
+            sys.exit()
         pretrained_weight = behavior_clone.learn(env, policy_fn, dataset,
-            max_iters=args.BC_max_iter,
-            ckpt_dir=args.checkpoint_dir, log_dir=args.log_dir)
+            max_iters=args.BC_max_iter, pretrained=args.pretrained, 
+            ckpt_dir=args.checkpoint_dir, log_dir=args.log_dir, task_name=task_name)
+        if args.algo == 'bc':
+            sys.exit()
 
     from network.adversary import TransitionClassifier
     # discriminator

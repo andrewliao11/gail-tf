@@ -2,7 +2,7 @@ from baselines.common import explained_variance, zipsame, dataset
 from baselines import logger
 import baselines.common.tf_util as U
 import tensorflow as tf, numpy as np
-import time, os
+import time, os, sys
 from baselines.common import colorize
 from mpi4py import MPI
 from collections import deque
@@ -232,7 +232,7 @@ def learn(env, policy_func, *,
     if task == 'sample_trajectory':
         # not elegant, i know :(
         sample_trajectory(load_model_path, max_sample_traj, traj_gen, task_name, sample_stochastic)
-        return
+        sys.exit()
 
     while True:        
         if callback: callback(locals(), globals())
