@@ -39,7 +39,7 @@ def train(args):
     trpo_mpi.learn(env, policy_fn, timesteps_per_batch=1024, max_kl=0.01, cg_iters=10, cg_damping=0.1,
         max_timesteps=args.num_timesteps, gamma=0.99, lam=0.98, vf_iters=5, vf_stepsize=1e-3,
         sample_stochastic=args.sample_stochastic, task_name=task_name, save_per_iter=args.save_per_iter,
-        ckpt_dir=args.checkpoint_dir, load_model_path=args.load_model_path)
+        ckpt_dir=args.checkpoint_dir, load_model_path=args.load_model_path, task=args.task)
     env.close()
 
 def main():
