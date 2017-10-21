@@ -2,7 +2,7 @@ from baselines.common import Dataset, explained_variance, fmt_row, zipsame
 from baselines import logger
 import baselines.common.tf_util as U
 import tensorflow as tf, numpy as np
-import time, os
+import time, os, sys
 from baselines.common.mpi_adam import MpiAdam
 from baselines.common.mpi_moments import mpi_moments
 from mpi4py import MPI
