@@ -1,10 +1,10 @@
 import argparse
-from baselines.common import set_global_seeds, tf_util as U
+from gailtf.baselines.common import set_global_seeds, tf_util as U
 import gym, logging, sys
-from baselines import bench
+from gailtf.baselines import bench
 import os.path as osp
-from baselines import logger
-from dataset.mujoco import Mujoco_Dset
+from gailtf.baselines import logger
+from gailtf.dataset.mujoco import Mujoco_Dset
 import numpy as np
 import ipdb
 
@@ -59,7 +59,7 @@ def get_task_name(args):
     return task_name
 
 def main(args):
-    from baselines.ppo1 import mlp_policy
+    from gailtf.baselines.ppo1 import mlp_policy
     U.make_session(num_cpu=args.num_cpu).__enter__()
     set_global_seeds(args.seed)
     env = gym.make(args.env_id)
@@ -77,7 +77,7 @@ def main(args):
     pretrained_weight = None
     if (args.pretrained and args.task == 'train') or args.algo == 'bc':
         # Pretrain with behavior cloning
-        from algo import behavior_clone
+        from gailtf.algo import behavior_clone
         if args.algo == 'bc' and args.task == 'evaluate':
             behavior_clone.evaluate(env, policy_fn, args.load_model_path, stocahstic_policy=args.stocahstic_policy)
             sys.exit()
@@ -87,7 +87,7 @@ def main(args):
         if args.algo == 'bc':
             sys.exit()
 
-    from network.adversary import TransitionClassifier
+    from gailtf.network.adversary import TransitionClassifier
     # discriminator
     discriminator = TransitionClassifier(env, args.adversary_hidden_size, entcoeff=args.adversary_entcoeff)
     if args.algo == 'trpo':
@@ -99,7 +99,7 @@ def main(args):
         workerseed = args.seed + 10000 * MPI.COMM_WORLD.Get_rank()
         set_global_seeds(workerseed)
         env.seed(workerseed)
-        from algo import trpo_mpi
+        from gailtf.algo import trpo_mpi
         if args.task == 'train':
             trpo_mpi.learn(env, policy_fn, discriminator, dataset,
                 pretrained=args.pretrained, pretrained_weight=pretrained_weight,

@@ -129,6 +129,20 @@ python main.py --env_id HalfCheetah-v1 --expert_path baselines/ppo1/deterministi
 GAIL policy [here](https://drive.google.com/drive/folders/0B3fKFm-j0RqeRnZMTUJHSmdIdlU?usp=sharing), 
 and BC policy [here](https://drive.google.com/drive/folders/0B3fKFm-j0RqeVFFmMWpHMk85cUk?usp=sharing)**
 
+## Hacking
+We don't have a pip package yet, so you'll need to add this repo to your 
+PYTHONPATH manually.
+```bash
+export PYTHONPATH=/path/to/your/repo/with/gailtf:$PYTHONPATH
+```
+
+## TODO
+* Create pip package/setup.py
+* Make style PIP8 compliant
+* Create requirements.txt
+* Depend on openai/baselines directly and modularize modifications
+* openai/robotschool support
+
 
 ## Reference
 - Jonathan Ho and Stefano Ermon. Generative adversarial imitation learning, [[arxiv](https://arxiv.org/abs/1606.03476)]
