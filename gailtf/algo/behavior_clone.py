@@ -7,7 +7,7 @@ import tempfile, os
 from common.statistics import stats
 import ipdb
 
-def evaluate(env, policy_func, load_model_path, stocahstic_policy=False, number_trajs=10):
+def evaluate(env, policy_func, load_model_path, stochastic_policy=False, number_trajs=10):
   from algo.trpo_mpi import traj_episode_generator
   ob_space = env.observation_space
   ac_space = env.action_space
@@ -16,7 +16,7 @@ def evaluate(env, policy_func, load_model_path, stocahstic_policy=False, number_
   ob = U.get_placeholder_cached(name="ob")
   ac = pi.pdtype.sample_placeholder([None])
   stochastic = U.get_placeholder_cached(name="stochastic")
-  ep_gen = traj_episode_generator(pi, env, 1024, stochastic=stocahstic_policy)
+  ep_gen = traj_episode_generator(pi, env, 1024, stochastic=stochastic_policy)
   U.load_state(load_model_path)
   len_list = []
   ret_list = []
@@ -25,7 +25,7 @@ def evaluate(env, policy_func, load_model_path, stocahstic_policy=False, number_
     ep_len, ep_ret = traj['ep_len'], traj['ep_ret']
     len_list.append(ep_len)
     ret_list.append(ep_ret)
-  if stocahstic_policy:
+  if stochastic_policy:
     print ('stochastic policy:')
   else:
     print ('deterministic policy:' )

@@ -20,7 +20,7 @@ def argsparser():
     # Task
     parser.add_argument('--task', type=str, choices=['train', 'evaluate'], default='train')
     # for evaluatation
-    parser.add_argument('--stocahstic_policy', type=bool, default=False)
+    parser.add_argument('--stochastic_policy', type=bool, default=False)
     #  Mujoco Dataset Configuration
     parser.add_argument('--ret_threshold', help='the return threshold for the expert trajectories', type=int, default=0)
     parser.add_argument('--traj_limitation', type=int, default=np.inf)
@@ -79,7 +79,7 @@ def main(args):
         # Pretrain with behavior cloning
         from gailtf.algo import behavior_clone
         if args.algo == 'bc' and args.task == 'evaluate':
-            behavior_clone.evaluate(env, policy_fn, args.load_model_path, stocahstic_policy=args.stocahstic_policy)
+            behavior_clone.evaluate(env, policy_fn, args.load_model_path, stochastic_policy=args.stochastic_policy)
             sys.exit()
         pretrained_weight = behavior_clone.learn(env, policy_fn, dataset,
             max_iters=args.BC_max_iter, pretrained=args.pretrained, 
@@ -114,7 +114,7 @@ def main(args):
                 task_name=task_name)
         elif args.task == 'evaluate':
             trpo_mpi.evaluate(env, policy_fn, args.load_model_path, timesteps_per_batch=1024,
-                number_trajs=10, stocahstic_policy=args.stocahstic_policy)
+                number_trajs=10, stochastic_policy=args.stochastic_policy)
         else: raise NotImplementedError
     else: raise NotImplementedError
 

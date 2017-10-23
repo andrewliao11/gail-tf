@@ -385,7 +385,7 @@ def traj_episode_generator(pi, env, horizon, stochastic):
         t += 1
 
 def evaluate(env, policy_func, load_model_path, timesteps_per_batch, number_trajs=10, 
-         stocahstic_policy=False):
+         stochastic_policy=False):
     
     from tqdm import tqdm
     # Setup network
@@ -396,7 +396,7 @@ def evaluate(env, policy_func, load_model_path, timesteps_per_batch, number_traj
     U.initialize()
     # Prepare for rollouts
     # ----------------------------------------
-    ep_gen = traj_episode_generator(pi, env, timesteps_per_batch, stochastic=stocahstic_policy)
+    ep_gen = traj_episode_generator(pi, env, timesteps_per_batch, stochastic=stochastic_policy)
     U.load_state(load_model_path)
 
     len_list = []
@@ -406,7 +406,7 @@ def evaluate(env, policy_func, load_model_path, timesteps_per_batch, number_traj
         ep_len, ep_ret = traj['ep_len'], traj['ep_ret']
         len_list.append(ep_len)
         ret_list.append(ep_ret)
-    if stocahstic_policy: 
+    if stochastic_policy: 
         print ('stochastic policy:')
     else:
         print ('deterministic policy:' )
