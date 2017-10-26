@@ -40,6 +40,7 @@ export ENV_ID="Hopper-v1"
 export BASELINES_PATH=$GAILTF/gailtf/baselines/ppo1 # use gailtf/baselines/trpo_mpi for TRPO
 export SAMPLE_STOCHASTIC="False"            # use True for stochastic sampling
 export STOCHASTIC_POLICY="False"            # use True for a stochastic policy
+export PYTHONPATH=$GAILTF:$PYTHONPATH       # as mentioned below
 cd $GAILTF
 ```
 
@@ -85,6 +86,11 @@ Usage:
 --g_step:          Number of policy optimization steps in each iteration
 --d_step:          Number of discriminator optimization steps in each iteration
 --num_timesteps:   Number of timesteps to train (limit the number of timesteps to interact with environment)
+```
+
+To view the summary plots in TensorBoard, issue
+```bash
+tensorboard --logdir $GAILTF/log
 ```
 
 ##### Evaluate your GAIL agent
