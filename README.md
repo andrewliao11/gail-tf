@@ -158,6 +158,12 @@ export PYTHONPATH=/path/to/your/repo/with/gailtf:$PYTHONPATH
 * Depend on openai/baselines directly and modularize modifications
 * openai/robotschool support
 
+## TroubleShooting
+
+- encounter `error: Cannot compile MPI programs. Check your configuration!!!` or the systme complain about `mpi/h` 
+```bash
+sudo apt install libopenmpi-dev
+```
 
 ## Reference
 - Jonathan Ho and Stefano Ermon. Generative adversarial imitation learning, [[arxiv](https://arxiv.org/abs/1606.03476)]
