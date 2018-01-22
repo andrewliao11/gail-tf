@@ -1,3 +1,10 @@
+# Check out the simpler version at [openai/baselines/gail](https://github.com/openai/baselines/blob/master/baselines/gail/README.md)!
+       
+       
+       
+       
+       
+       
 # gail-tf
 Tensorflow implementation of Generative Adversarial Imitation Learning (and 
 behavior cloning)
