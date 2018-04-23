@@ -274,21 +274,30 @@ def FileWriter(dir_path):
 # ================================================================
 # Saving variables
 # ================================================================
-
 def load_state(fname, var_list=None):
     if var_list is not None: saver = tf.train.Saver(var_list=var_list)
     else: saver = tf.train.Saver()
     saver.restore(get_session(), fname)
 
+_SAVER_CACHE = {}  # name -> saver
 
 def save_state(fname, var_list=None, counter=None):
 
     os.makedirs(os.path.dirname(fname), exist_ok=True)
-    if var_list is not None: saver = tf.train.Saver(var_list=var_list)
-    else: saver = tf.train.Saver()
+
+    saver = get_saver(var_list=var_list)
 
     if counter is not None: saver.save(get_session(), fname, global_step=counter)
     else: saver.save(get_session(), fname)
+
+def get_saver(name='default_saver', var_list=None):
+    if name in _SAVER_CACHE:
+        return _SAVER_CACHE[name]
+    else:
+        saver = tf.train.Saver(var_list=var_list)
+        _SAVER_CACHE[name] = saver
+        return saver
+
 
 # ================================================================
 # Model components
